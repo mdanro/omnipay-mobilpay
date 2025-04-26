@@ -293,42 +293,103 @@ abstract class AbstractRequest
         }
     }
 
-    public function encrypt($x509FilePath)
-    {
-        $this->_prepare();
-
-        $publicKey = openssl_pkey_get_public("file://{$x509FilePath}");
-
-        if ($publicKey === false) {
-            $this->outEncData    = null;
-            $this->outEnvKey    = null;
-            $errorMessage = "Error while loading X509 public key certificate! Reason:";
-            while (($errorString = openssl_error_string())) {
-                $errorMessage .= $errorString . "\n";
-            }
-            throw new Exception($errorMessage, self::ERROR_LOAD_X509_CERTIFICATE);
-        }
-
-        $srcData = $this->_xmlDoc->saveXML();
-        $publicKeys    = [$publicKey];
-        $encData    = null;
-        $envKeys    = null;
-
-        $result = openssl_seal($srcData, $encData, $envKeys, $publicKeys, "RC4");
-        if ($result === false) {
-            $this->outEncData    = null;
-            $this->outEnvKey    = null;
-            $errorMessage = "Error while encrypting data! Reason:";
-            while (($errorString = openssl_error_string())) {
-                $errorMessage .= $errorString . "\n";
-            }
-            throw new Exception($errorMessage, self::ERROR_ENCRYPT_DATA);
-        }
-
-        $this->outEncData    = base64_encode($encData);
-        $this->outEnvKey    = base64_encode($envKeys[0]);
-    }
-
+   public function encrypt($x509FilePath)
+	{
+		$publicKey = openssl_pkey_get_public($x509FilePath);
+		if ($publicKey === false)
+		{
+			$publicKey = openssl_pkey_get_public("file://{$x509FilePath}");
+		}
+		if ($publicKey === false)
+		{
+			$this->outEncData 	= null;
+			$this->outEnvKey 	= null;
+			$this->outCipher 	= null;
+			$this->outIv 		= null;
+			$errorMessage = "Error while loading X509 public key certificate! Reason:";
+			while(($errorString = openssl_error_string()))
+			{
+				$errorMessage .= $errorString . "\n";
+			}
+			throw new Exception($errorMessage, self::ERROR_LOAD_X509_CERTIFICATE);
+		}
+		$publicKeys = array(
+			$publicKey
+		);
+		$encData 		= null;
+		$envKeys 		= null;
+		$cipher_algo 	= 'rc4';
+		$iv 			= null;
+		if(PHP_VERSION_ID >= 70000)
+		{
+			if(OPENSSL_VERSION_NUMBER > 0x10000000)
+			{
+				$cipher_algo = 'aes-256-cbc';
+			}	
+		}
+		else
+		{
+			if(OPENSSL_VERSION_NUMBER >= 0x30000000)
+			{
+				$this->outEncData 	= null;
+				$this->outEnvKey 	= null;
+				$this->outCipher 	= null;
+				$this->outIv 		= null;
+				$errorMessage 		= 'incompatible configuration PHP ' . PHP_VERSION . ' & ' . OPENSSL_VERSION_TEXT;
+				throw new Exception($errorMessage, self::ERROR_REQUIRED_CIPHER_NOT_AVAILABLE);
+			}
+		}
+		$opensslCipherMethods = openssl_get_cipher_methods();
+		if(in_array($cipher_algo, $opensslCipherMethods))
+		{
+		}
+		else if(in_array(strtoupper($cipher_algo), $opensslCipherMethods))
+		{
+			$cipher_algo = strtoupper($cipher_algo);
+		}
+		else
+		{
+			$this->outEncData 	= null;
+			$this->outEnvKey 	= null;
+			$this->outCipher 	= null;
+			$this->outIv 		= null;
+			$errorMessage 		= '`' . $cipher_algo . '` required cipher is not available';
+			throw new Exception($errorMessage, self::ERROR_REQUIRED_CIPHER_NOT_AVAILABLE);
+		}
+		if($this->ipnCipher === null)
+		{
+			$this->ipnCipher = $cipher_algo;
+		}
+		$this->_prepare();
+		$srcData = $this->_xmlDoc->saveXML();
+		if(PHP_VERSION_ID >= 70000)
+		{
+			$result = openssl_seal($srcData, $encData, $envKeys, $publicKeys, $cipher_algo, $iv);
+		}
+		else
+		{
+			$result = openssl_seal($srcData, $encData, $envKeys, $publicKeys, $cipher_algo);
+		}
+		if($result === false)
+		{
+			$this->outEncData 	= null;
+			$this->outEnvKey 	= null;
+			$this->outCipher 	= null;
+			$this->outIv 		= null;
+			$errorMessage = "Error while encrypting data! Reason:";
+			while(($errorString = openssl_error_string()))
+			{
+				$errorMessage .= $errorString . "\n";
+			}
+			throw new Exception($errorMessage, self::ERROR_ENCRYPT_DATA);
+		}
+		
+		$this->outEncData 	= base64_encode($encData);
+		$this->outEnvKey 	= base64_encode($envKeys[0]);
+		$this->outCipher 	= $cipher_algo;
+		$this->outIv 		= (strlen($iv) > 0) ? base64_encode($iv) : '';
+	}
+    
     public function getEnvKey()
     {
         return $this->outEnvKey;
