@@ -1,58 +1,41 @@
 <?php
-
-namespace Omnipay\MobilPay\Api\Request;
-
 /**
  * Class Mobilpay_Payment_Request_Card
  * This class can be used for accessing mobilpay.ro payment interface for your configured online services
- * @copyright NETOPIA System
+ * @copyright NETOPIA
  * @author Claudiu Tudose
  * @version 1.0
- *
+ * 
  */
-
-use Exception;
-use DOMDocument;
-use DOMElement;
-use DOMNode;
-use Omnipay\MobilPay\Api\Invoice;
-use Omnipay\MobilPay\Api\Recurrence;
-
-class Card extends AbstractRequest
+class Mobilpay_Payment_Request_Card extends Mobilpay_Payment_Request_Abstract  
 {
-    const ERROR_LOAD_FROM_XML_ORDER_INVOICE_ELEM_MISSING    = 0x30000001;
+	const ERROR_LOAD_FROM_XML_ORDER_INVOICE_ELEM_MISSING	= 0x30000001;
+	
+	public $invoice	= null;
+	 
+	function __construct()
+	{
+		parent::__construct();
+		$this->type = self::PAYMENT_TYPE_CARD;
+	}
+	
+	protected function _loadFromXml(DOMElement $elem)
+	{
+		parent::_parseFromXml($elem);
+		
+		//card request specific data
+		$elems = $elem->getElementsByTagName('invoice');
+		if($elems->length != 1)
+		{
+			throw new Exception('Mobilpay_Payment_Request_Card::loadFromXml failed; invoice element is missing', self::ERROR_LOAD_FROM_XML_ORDER_INVOICE_ELEM_MISSING);
+		}
+		
+		$this->invoice = new Mobilpay_Payment_Invoice($elems->item(0));
 
-    public $invoice    = null;
-    public $recurrence = null;
-
-    public function __construct()
-    {
-        parent::__construct();
-        $this->type = self::PAYMENT_TYPE_CARD;
-    }
-
-    protected function _loadFromXml(DOMElement $elem)
-    {
-        parent::_parseFromXml($elem);
-
-        //card request specific data
-        $elems = $elem->getElementsByTagName('invoice');
-        if ($elems->length != 1) {
-            throw new Exception('Mobilpay_Payment_Request_Card::loadFromXml failed; invoice element is missing', self::ERROR_LOAD_FROM_XML_ORDER_INVOICE_ELEM_MISSING);
-        }
-
-        $this->invoice = new Invoice($elems->item(0));
-
-        $elems = $elem->getElementsByTagName('recurrence');
-
-        if ($elems->length > 0) {
-            $this->recurrence = new Recurrence($elems->item(0));
-        }
-
-        return $this;
-    }
-
- protected function _prepare()
+		return $this;
+	}
+	
+	protected function _prepare()
 	{
 		if(is_null($this->signature) || is_null($this->orderId) || !($this->invoice instanceof Mobilpay_Payment_Invoice))
 		{
