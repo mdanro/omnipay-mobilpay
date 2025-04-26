@@ -314,7 +314,7 @@ abstract class AbstractRequest
         $encData    = null;
         $envKeys    = null;
 
-        $result    = openssl_seal($srcData, $encData, $envKeys, $publicKeys);
+        $result = openssl_seal($srcData, $encData, $envKeys, $publicKeys, "RC4");
         if ($result === false) {
             $this->outEncData    = null;
             $this->outEnvKey    = null;
